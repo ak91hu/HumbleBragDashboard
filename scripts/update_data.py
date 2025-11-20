@@ -1,6 +1,7 @@
 import os
 import json
 import pandas as pd
+import time
 from stravalib.client import Client
 
 DATA_DIR = 'data'
@@ -25,47 +26,28 @@ def get_value(obj):
 
 def update_activities():
     os.makedirs(DATA_DIR, exist_ok=True)
-    print("--- Adatfrissítés indítása ---")
-
-    client = get_client()
+    print("🚀 --- TELJES ADATLETÖLTÉS INDÍTÁSA (HARD RESET) ---")
     
-    # Meglévő adatok betöltése vagy üres DataFrame
+    # 1. LÉPÉS: Töröljük a régi fájlt, hogy biztosan mindent leszedjen
     if os.path.exists(ACTIVITIES_FILE):
-        try:
-            existing_df = pd.read_csv(ACTIVITIES_FILE)
-            if not existing_df.empty:
-                existing_df['start_date'] = pd.to_datetime(existing_df['start_date'])
-                last_date = existing_df['start_date'].max()
-                print(f"Utolsó ismert edzés dátuma: {last_date}")
-            else:
-                last_date = None
-                print("A fájl létezik, de üres. Teljes letöltés...")
-        except Exception as e:
-            print(f"Hiba a meglévő fájl olvasásakor: {e}. Újrakezdés.")
-            existing_df = pd.DataFrame()
-            last_date = None
-    else:
-        existing_df = pd.DataFrame(columns=[
-            'id', 'name', 'start_date', 'distance_km', 'moving_time_min', 
-            'elevation_m', 'type', 'average_speed_kmh', 'pr_count', 'kudos'
-        ])
-        last_date = None
-        print("Nincs meglévő adatbázis. Teljes letöltés...")
-
-    # Ha last_date NaN (érvénytelen), legyen None
-    if pd.isna(last_date):
-        last_date = None
-
+        print(f"⚠️  Régi adatbázis törlése: {ACTIVITIES_FILE}")
+        os.remove(ACTIVITIES_FILE)
+    
+    client = get_client()
     new_activities = []
     
-    # LIMIT=None, hogy mindent letöltsön!
+    print("⏳ Kapcsolódás a Stravához és adatok letöltése... (Ez eltarthat egy ideig)")
+    
+    # Nincs 'after' paraméter = az idők kezdetétől töltünk le
+    # limit=None = nincs korlát, mindent kérünk
+    activity_generator = client.get_activities(limit=None)
+    
+    count = 0
     try:
-        print(f"Letöltés indítása innen: {last_date if last_date else 'Kezdetek'}")
-        activities = client.get_activities(after=last_date, limit=None)
-        
-        for i, act in enumerate(activities):
+        for act in activity_generator:
             try:
-                new_activities.append({
+                # Egyszerűsített adatkinyerés
+                data = {
                     'id': act.id,
                     'name': act.name,
                     'start_date': act.start_date_local,
@@ -76,62 +58,49 @@ def update_activities():
                     'average_speed_kmh': get_value(act.average_speed) * 3.6,
                     'pr_count': act.pr_count,
                     'kudos': act.kudos_count
-                })
-                if i % 100 == 0:
-                    print(f"{i} edzés feldolgozva...")
-            except Exception as e:
-                print(f"Hiba egy edzésnél ({act.id}): {e}")
+                }
+                new_activities.append(data)
+                count += 1
+                
+                # Visszajelzés minden 50. edzésnél a logba
+                if count % 50 == 0:
+                    print(f"✅ Feldolgozva: {count} edzés... (Legutóbbi: {act.start_date_local.date()})")
+                    
+            except Exception as inner_e:
+                print(f"❌ Hiba egy adott edzésnél ({act.id}): {inner_e}")
                 continue
                 
     except Exception as e:
-        print(f"KRITIKUS HIBA a letöltés közben: {e}")
-
-    print(f"Új edzések száma: {len(new_activities)}")
+        print(f"🔥 KRITIKUS HIBA a letöltés közben: {e}")
+        # Ha itt megáll, akkor is mentsük el, amit eddig sikerült
+    
+    print(f"🏁 Összesen {count} edzés letöltve.")
 
     if new_activities:
-        new_df = pd.DataFrame(new_activities)
-        new_df['start_date'] = pd.to_datetime(new_df['start_date'])
-        
-        if not existing_df.empty:
-            final_df = pd.concat([existing_df, new_df])
-        else:
-            final_df = new_df
-            
-        final_df = final_df.drop_duplicates(subset='id', keep='last')
+        final_df = pd.DataFrame(new_activities)
+        final_df['start_date'] = pd.to_datetime(final_df['start_date'])
         final_df = final_df.sort_values('start_date', ascending=False)
+        
+        final_df.to_csv(ACTIVITIES_FILE, index=False)
+        print(f"💾 Adatok sikeresen mentve ide: {ACTIVITIES_FILE}")
+        print(f"📊 Adatbázis mérete: {len(final_df)} sor")
+        return final_df
     else:
-        final_df = existing_df
-
-    final_df.to_csv(ACTIVITIES_FILE, index=False)
-    print("Mentés kész.")
-    return final_df
+        print("⚠️ Nem találtam letölthető edzést. Ellenőrizd a Strava fiókodat vagy a jogosultságokat!")
+        # Üres fájl létrehozása, hogy ne legyen hiba
+        empty = pd.DataFrame(columns=['id', 'name', 'start_date', 'distance_km', 'elevation_m', 'average_speed_kmh', 'pr_count'])
+        empty.to_csv(ACTIVITIES_FILE, index=False)
+        return empty
 
 def update_leaderboards(df):
-    os.makedirs(DATA_DIR, exist_ok=True)
+    # Ezt most kikapcsoljuk vagy minimalizáljuk, hogy először az alap adatok meglegyenek
+    # A leaderboard lekérdezés nagyon lassú és hamar eléri a limitet
+    print("⏩ Leaderboard frissítés kihagyása a gyorsabb első futtatás érdekében.")
     
-    leaderboard_data = []
-    if not df.empty:
-        client = get_client()
-        recent_ids = df.head(5)['id'].tolist()
-        
-        for act_id in recent_ids:
-            try:
-                detail = client.get_activity(act_id, include_all_efforts=True)
-                if detail.segment_efforts:
-                    for effort in detail.segment_efforts:
-                        rank = effort.kom_rank or effort.pr_rank
-                        if rank and rank <= 10:
-                            leaderboard_data.append({
-                                'segment_name': effort.segment.name,
-                                'rank': rank,
-                                'date': detail.start_date_local.strftime('%Y-%m-%d'),
-                                'time_str': str(effort.elapsed_time)
-                            })
-            except Exception:
-                continue
-            
-    with open(LEADERBOARD_FILE, 'w') as f:
-        json.dump(leaderboard_data, f)
+    # Üres JSON létrehozása, hogy ne sírjon az app
+    if not os.path.exists(LEADERBOARD_FILE):
+        with open(LEADERBOARD_FILE, 'w') as f:
+            json.dump([], f)
 
 if __name__ == "__main__":
     df = update_activities()
