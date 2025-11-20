@@ -17,6 +17,15 @@ def get_client():
     client.access_token = refresh_response['access_token']
     return client
 
+def get_value(obj):
+    if obj is None:
+        return 0
+    if hasattr(obj, 'magnitude'):
+        return obj.magnitude
+    if hasattr(obj, 'num'):
+        return obj.num
+    return float(obj)
+
 def update_activities():
     client = get_client()
     
@@ -29,26 +38,36 @@ def update_activities():
         last_date = None
 
     new_activities = []
-    for act in client.get_activities(after=last_date):
-        new_activities.append({
-            'id': act.id,
-            'name': act.name,
-            'start_date': act.start_date_local,
-            'distance_km': act.distance.num / 1000,
-            'moving_time_min': act.moving_time.seconds / 60,
-            'elevation_m': act.total_elevation_gain.num,
-            'type': act.type,
-            'average_speed_kmh': act.average_speed.num * 3.6,
-            'pr_count': act.pr_count,
-            'kudos': act.kudos_count
-        })
+    activities = client.get_activities(after=last_date)
+
+    for act in activities:
+        try:
+            new_activities.append({
+                'id': act.id,
+                'name': act.name,
+                'start_date': act.start_date_local,
+                'distance_km': get_value(act.distance) / 1000, 
+                'moving_time_min': act.moving_time.seconds / 60,
+                'elevation_m': get_value(act.total_elevation_gain),
+                'type': act.type,
+                'average_speed_kmh': get_value(act.average_speed) * 3.6,
+                'pr_count': act.pr_count,
+                'kudos': act.kudos_count
+            })
+        except Exception:
+            continue
 
     if new_activities:
         new_df = pd.DataFrame(new_activities)
         new_df['start_date'] = pd.to_datetime(new_df['start_date'])
-        final_df = pd.concat([existing_df, new_df]).drop_duplicates(subset='id').sort_values('start_date', ascending=False)
+        
+        final_df = pd.concat([existing_df, new_df])
+        final_df = final_df.drop_duplicates(subset='id', keep='last')
+        final_df = final_df.sort_values('start_date', ascending=False)
+        
         final_df.to_csv(DATA_PATH, index=False)
         return final_df
+    
     return existing_df
 
 def update_leaderboards(df):
@@ -72,11 +91,12 @@ def update_leaderboards(df):
                             'date': detail.start_date_local.strftime('%Y-%m-%d'),
                             'time_str': str(effort.elapsed_time)
                         })
-        except:
+        except Exception:
             continue
             
-    with open(LEADERBOARD_PATH, 'w') as f:
-        json.dump(leaderboard_data, f)
+    if leaderboard_data:
+        with open(LEADERBOARD_PATH, 'w') as f:
+            json.dump(leaderboard_data, f)
 
 if __name__ == "__main__":
     df = update_activities()
