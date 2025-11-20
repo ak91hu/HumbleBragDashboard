@@ -19,7 +19,9 @@ def load_data():
         df['type'] = df['type'].astype(str).str.replace(r'root=', '', regex=False).str.strip()
         df['type'] = df['type'].apply(lambda x: x.split('=')[-1].replace('>', '') if '=' in x else x)
 
-    df['start_date'] = pd.to_datetime(df['start_date'])
+    # Időzóna javítás (tz-naive)
+    df['start_date'] = pd.to_datetime(df['start_date'], utc=True).dt.tz_localize(None)
+    
     df['year'] = df['start_date'].dt.year
     df['month_name'] = df['start_date'].dt.month_name()
     df['week'] = df['start_date'].dt.isocalendar().week
@@ -87,7 +89,48 @@ k5.metric("Max Széria", f"{max_streak} nap")
 
 st.divider()
 
-t1, t2, t3, t4, t5 = st.tabs(["📈 Trendek", "🏔️ Kihívások & Gasztró", "📅 GitHub Heatmap", "🏆 Rekordok", "🗺️ Időbeli"])
+# Fülek definiálása (Az első az új Napló)
+t_log, t1, t2, t3, t4, t5 = st.tabs(["📋 Napló", "📈 Trendek", "🏔️ Kihívások", "📅 Heatmap", "🏆 Rekordok", "🗺️ Időbeli"])
+
+# --- ÚJ SZEKCIÓ: UTOLSÓ 10 AKTIVITÁS ---
+with t_log:
+    st.subheader("Legutóbbi 10 aktivitás")
+    
+    # Adatok előkészítése: sorrend megfordítása (legújabb felül) és top 10
+    last_10 = filtered.sort_values('start_date', ascending=False).head(10).copy()
+    
+    # Strava link generálása
+    last_10['link'] = "https://www.strava.com/activities/" + last_10['id'].astype(str)
+    
+    # Oszlopok átnevezése a szép megjelenítéshez
+    display_cols = {
+        'start_date': 'Dátum',
+        'name': 'Név',
+        'type': 'Típus',
+        'distance_km': 'Táv (km)',
+        'elevation_m': 'Szint (m)',
+        'moving_time_min': 'Idő (perc)',
+        'average_speed_kmh': 'Tempó (km/h)',
+        'kudos': 'Kudos',
+        'link': 'Link'
+    }
+    
+    # Csak a szükséges oszlopok
+    display_df = last_10[display_cols.keys()].rename(columns=display_cols)
+    
+    st.dataframe(
+        display_df,
+        column_config={
+            "Link": st.column_config.LinkColumn("Strava", display_text="Megnyitás"),
+            "Dátum": st.column_config.DatetimeColumn(format="YYYY.MM.DD HH:mm"),
+            "Táv (km)": st.column_config.NumberColumn(format="%.1f km"),
+            "Szint (m)": st.column_config.NumberColumn(format="%d m"),
+            "Tempó (km/h)": st.column_config.NumberColumn(format="%.1f km/h"),
+            "Idő (perc)": st.column_config.NumberColumn(format="%d p"),
+        },
+        use_container_width=True,
+        hide_index=True
+    )
 
 with t1:
     c1, c2 = st.columns([2, 1])
@@ -103,10 +146,8 @@ with t1:
 with t2:
     st.subheader("🏔️ Hegymászó Kihívás")
     total_elev = filtered['elevation_m'].sum()
-    
     kekesteto = 1014
     everest = 8848
-    olympus_mons = 21000
     
     c1, c2 = st.columns(2)
     with c1:
@@ -132,35 +173,25 @@ with t2:
 
 with t3:
     st.subheader("📅 Aktivitási Heatmap (GitHub Stílus)")
-    
     for year in sorted(filtered['year'].unique(), reverse=True):
         st.markdown(f"### {year}")
-        
-        # Adatok előkészítése a rácshoz
         df_year = filtered[filtered['year'] == year].copy()
         if df_year.empty: continue
         
-        # Teljes dátumlista generálása, hogy ne legyenek lyukak
         full_range = pd.date_range(start=f'{year}-01-01', end=f'{year}-12-31')
-        daily_data = pd.DataFrame(index=full_range)
-        daily_data = daily_data.join(df_year.groupby('start_date')['distance_km'].sum()).fillna(0)
+        daily_data = df_year.set_index('start_date')['distance_km'].resample('D').sum().reindex(full_range, fill_value=0).to_frame()
         
-        # Grid koordináták
         daily_data['week'] = daily_data.index.isocalendar().week
-        daily_data['day_of_week'] = daily_data.index.dayofweek # 0=Hétfő, 6=Vasárnap
-        daily_data['day_name'] = daily_data.index.day_name()
+        daily_data['day_of_week'] = daily_data.index.dayofweek
         
-        # Pivot tábla a heatmaphez (Sor: Nap, Oszlop: Hét)
         heatmap_data = daily_data.pivot_table(index='day_of_week', columns='week', values='distance_km', fill_value=0)
-        
-        # Napok nevei az Y tengelyre
         days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
         
         fig_cal = px.imshow(
             heatmap_data,
             labels=dict(x="Hét", y="Nap", color="Km"),
             y=days,
-            color_continuous_scale=[(0, "#ebedf0"), (0.01, "#9be9a8"), (0.5, "#30a14e"), (1, "#216e39")], # GitHub zöld színek
+            color_continuous_scale=[(0, "#ebedf0"), (0.01, "#9be9a8"), (0.5, "#30a14e"), (1, "#216e39")],
             aspect="equal"
         )
         fig_cal.update_layout(
