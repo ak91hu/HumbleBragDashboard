@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 
-st.set_page_config(page_title="Strava Pro Stats", layout="wide", page_icon="🏃", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Humblebrag Dashboard", layout="wide", page_icon="🏃", initial_sidebar_state="expanded")
 
 @st.cache_data
 def load_data():
@@ -14,6 +14,10 @@ def load_data():
     num_cols = ['distance_km', 'elevation_m', 'average_speed_kmh', 'pr_count', 'moving_time_min', 'kudos', 'max_heartrate', 'average_heartrate']
     for col in num_cols:
         if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+    if 'type' in df.columns:
+        df['type'] = df['type'].astype(str).str.replace(r'root=', '', regex=False).str.strip()
+        df['type'] = df['type'].apply(lambda x: x.split('=')[-1].replace('>', '') if '=' in x else x)
 
     df['start_date'] = pd.to_datetime(df['start_date'])
     df['year'] = df['start_date'].dt.year
@@ -54,20 +58,22 @@ if df.empty:
     st.error("Nincs adat. Ellenőrizd a GitHub Actiont.")
     st.stop()
 
-# --- SIDEBAR ---
 st.sidebar.title("🔍 Szűrők")
+
 years = sorted(df['year'].unique(), reverse=True)
-sel_years = st.sidebar.multiselect("Évek", years, default=years[:2] if len(years) > 1 else years)
-types = df['type'].unique()
-sel_types = st.sidebar.multiselect("Típus", types, default=types)
+sel_years = st.sidebar.multiselect("Évek", years, default=years) 
+
+st.sidebar.divider()
+
+types = sorted(df['type'].unique())
+sel_types = st.sidebar.multiselect("Mozgásforma", types, default=types)
 
 if not sel_years: sel_years = years
 if not sel_types: sel_types = types
 
 filtered = df[df['year'].isin(sel_years) & df['type'].isin(sel_types)]
 
-# --- KPI ---
-st.title(f"📊 Strava Analytics {min(sel_years)}-{max(sel_years)}")
+st.title(f"📊 Humblebrag Dashboard {min(sel_years)}-{max(sel_years)}")
 k1, k2, k3, k4, k5 = st.columns(5)
 max_streak, cur_streak = calculate_streaks(filtered)
 
@@ -79,7 +85,6 @@ k5.metric("Széria (Max)", f"{max_streak} nap")
 
 st.divider()
 
-# --- TABS ---
 t1, t2, t3, t4, t5 = st.tabs(["📈 Trendek", "📅 Havi Mátrix", "⚡ Intenzitás", "🏆 Rekordok", "🗺️ Időbeli"])
 
 with t1:
@@ -112,7 +117,6 @@ with t2:
 
     piv = filtered.pivot_table(index='year', columns='month', values='distance_km', aggfunc='sum', fill_value=0)
     st.write("Havi kilométer mátrix:")
-    # JAVÍTOTT RÉSZ: Hiba esetén sima táblázatot mutat
     try:
         st.dataframe(piv.style.background_gradient(cmap="Greens", axis=None).format("{:.0f}"), use_container_width=True)
     except ImportError:
@@ -136,14 +140,15 @@ with t3:
 
 with t4:
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Leghosszabb", f"{filtered['distance_km'].max():.1f} km")
-    c2.metric("Legtöbb Szint", f"{filtered['elevation_m'].max():.0f} m")
-    c3.metric("Leggyorsabb", f"{filtered[filtered['distance_km']>5]['average_speed_kmh'].max():.1f} km/h")
-    c4.metric("Legtöbb Kudos", f"{filtered['kudos'].max()}")
+    if not filtered.empty:
+        c1.metric("Leghosszabb", f"{filtered['distance_km'].max():.1f} km")
+        c2.metric("Legtöbb Szint", f"{filtered['elevation_m'].max():.0f} m")
+        c3.metric("Leggyorsabb", f"{filtered[filtered['distance_km']>5]['average_speed_kmh'].max():.1f} km/h")
+        c4.metric("Legtöbb Kudos", f"{filtered['kudos'].max()}")
 
-    st.subheader("Top 10 Edzés (Táv alapján)")
-    top10 = filtered.nlargest(10, 'distance_km')[['start_date', 'name', 'type', 'distance_km', 'moving_time_min', 'elevation_m', 'average_speed_kmh']]
-    st.dataframe(top10, use_container_width=True)
+        st.subheader("Top 10 Edzés (Táv alapján)")
+        top10 = filtered.nlargest(10, 'distance_km')[['start_date', 'name', 'type', 'distance_km', 'moving_time_min', 'elevation_m', 'average_speed_kmh']]
+        st.dataframe(top10, use_container_width=True)
 
 with t5:
     c1, c2 = st.columns(2)
