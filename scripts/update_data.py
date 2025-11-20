@@ -18,34 +18,52 @@ def get_client():
     return client
 
 def get_value(obj):
-    if obj is None:
-        return 0
-    if hasattr(obj, 'magnitude'):
-        return obj.magnitude
-    if hasattr(obj, 'num'):
-        return obj.num
+    if obj is None: return 0
+    if hasattr(obj, 'magnitude'): return obj.magnitude
+    if hasattr(obj, 'num'): return obj.num
     return float(obj)
 
 def update_activities():
     os.makedirs(DATA_DIR, exist_ok=True)
+    print("--- Adatfrissítés indítása ---")
 
     client = get_client()
     
+    # Meglévő adatok betöltése vagy üres DataFrame
     if os.path.exists(ACTIVITIES_FILE):
-        existing_df = pd.read_csv(ACTIVITIES_FILE)
-        existing_df['start_date'] = pd.to_datetime(existing_df['start_date'])
-        last_date = existing_df['start_date'].max()
+        try:
+            existing_df = pd.read_csv(ACTIVITIES_FILE)
+            if not existing_df.empty:
+                existing_df['start_date'] = pd.to_datetime(existing_df['start_date'])
+                last_date = existing_df['start_date'].max()
+                print(f"Utolsó ismert edzés dátuma: {last_date}")
+            else:
+                last_date = None
+                print("A fájl létezik, de üres. Teljes letöltés...")
+        except Exception as e:
+            print(f"Hiba a meglévő fájl olvasásakor: {e}. Újrakezdés.")
+            existing_df = pd.DataFrame()
+            last_date = None
     else:
         existing_df = pd.DataFrame(columns=[
             'id', 'name', 'start_date', 'distance_km', 'moving_time_min', 
             'elevation_m', 'type', 'average_speed_kmh', 'pr_count', 'kudos'
         ])
         last_date = None
+        print("Nincs meglévő adatbázis. Teljes letöltés...")
+
+    # Ha last_date NaN (érvénytelen), legyen None
+    if pd.isna(last_date):
+        last_date = None
 
     new_activities = []
+    
+    # LIMIT=None, hogy mindent letöltsön!
     try:
-        activities = client.get_activities(after=last_date)
-        for act in activities:
+        print(f"Letöltés indítása innen: {last_date if last_date else 'Kezdetek'}")
+        activities = client.get_activities(after=last_date, limit=None)
+        
+        for i, act in enumerate(activities):
             try:
                 new_activities.append({
                     'id': act.id,
@@ -59,28 +77,39 @@ def update_activities():
                     'pr_count': act.pr_count,
                     'kudos': act.kudos_count
                 })
-            except Exception:
+                if i % 100 == 0:
+                    print(f"{i} edzés feldolgozva...")
+            except Exception as e:
+                print(f"Hiba egy edzésnél ({act.id}): {e}")
                 continue
-    except Exception:
-        pass
+                
+    except Exception as e:
+        print(f"KRITIKUS HIBA a letöltés közben: {e}")
+
+    print(f"Új edzések száma: {len(new_activities)}")
 
     if new_activities:
         new_df = pd.DataFrame(new_activities)
         new_df['start_date'] = pd.to_datetime(new_df['start_date'])
-        final_df = pd.concat([existing_df, new_df])
+        
+        if not existing_df.empty:
+            final_df = pd.concat([existing_df, new_df])
+        else:
+            final_df = new_df
+            
         final_df = final_df.drop_duplicates(subset='id', keep='last')
         final_df = final_df.sort_values('start_date', ascending=False)
     else:
         final_df = existing_df
 
     final_df.to_csv(ACTIVITIES_FILE, index=False)
+    print("Mentés kész.")
     return final_df
 
 def update_leaderboards(df):
     os.makedirs(DATA_DIR, exist_ok=True)
     
     leaderboard_data = []
-    
     if not df.empty:
         client = get_client()
         recent_ids = df.head(5)['id'].tolist()
