@@ -1,5 +1,6 @@
 # 🥇 Humblebrag Dashboard
 
+[![Documentation Status](https://readthedocs.org/projects/humblebragdashboard/badge/?version=latest)](https://humblebragdashboard.readthedocs.io/en/latest/?badge=latest)
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/)
 ![Python](https://img.shields.io/badge/Python-3.11-blue.svg)
 ![Build Status](https://github.com/ak91hu/HumbleBragDashboard/actions/workflows/daily_update.yml/badge.svg)
