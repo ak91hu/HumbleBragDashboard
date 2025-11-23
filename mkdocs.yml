@@ -1,0 +1,31 @@
+site_name: Humblebrag Dashboard
+site_description: Automated Strava Analytics Dashboard with Python.
+site_url: https://humblebrag-dashboard.readthedocs.io/
+repo_url: https://github.com/ak91hu/HumblebragDashboard
+repo_name: ak91hu/HumblebragDashboard
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette: 
+    primary: deep orange
+    accent: teal
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Installation & Setup: setup.md
+  - Features Guide: features.md
+  - Technical Details: technical.md
+  - Troubleshooting: troubleshooting.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
