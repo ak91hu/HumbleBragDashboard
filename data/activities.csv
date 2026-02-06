@@ -1,5 +1,5 @@
 id,name,start_date,distance_km,moving_time_min,elevation_m,type,average_speed_kmh,pr_count,kudos
-17262207383,Afternoon Walk,2026-02-02 16:18:54+00:00,3.0019,35.833333333333336,0.0,root='Walk',5.0256,0,20
+17262207383,Afternoon Walk,2026-02-02 16:18:54+00:00,3.0019,35.833333333333336,0.0,root='Walk',5.0256,0,22
 17255191279,Morning Workout,2026-02-01 06:46:05+00:00,0.0,38.11666666666667,0.0,root='Workout',0.0,0,11
 17190823890,Afternoon Walk,2026-01-26 16:34:13+00:00,2.3861,25.95,0.0,root='Walk',5.5152,0,17
 17169807091,Már megint túl korán leállt! 🥴,2026-01-25 06:45:02+00:00,0.0,23.166666666666668,0.0,root='Workout',0.0,0,20
