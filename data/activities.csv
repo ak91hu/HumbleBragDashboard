@@ -1,4 +1,5 @@
 id,name,start_date,distance_km,moving_time_min,elevation_m,type,average_speed_kmh,pr_count,kudos
+19265754728,Heti félmaraton,2026-07-11 06:10:30+00:00,21.5472,142.56666666666666,12.2,root='Run',9.0684,1,26
 19204425268,Evening Walk,2026-07-06 19:22:29+00:00,3.3108,45.45,42.9,root='Walk',4.3704,0,24
 19204420459,Afternoon Walk,2026-07-06 16:19:54+00:00,3.1653000000000002,39.65,2.5,root='Walk',4.788,0,18
 19204420284,Morning Walk,2026-07-06 07:30:52+00:00,2.7788000000000004,33.6,14.5,root='Walk',4.9608,0,13
