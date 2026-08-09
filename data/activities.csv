@@ -1,4 +1,5 @@
 id,name,start_date,distance_km,moving_time_min,elevation_m,type,average_speed_kmh,pr_count,kudos
+19649612485,Morning Run,2026-08-08 05:55:31+00:00,21.5454,142.11666666666667,12.0,root='Run',9.0972,3,19
 19564521003,Nagyooon meleg van! 🥵🥵,2026-08-02 05:58:44+00:00,14.5504,95.01666666666667,9.9,root='Run',9.1872,0,24
 19551086742,Morning Run,2026-08-01 06:05:50+00:00,21.2761,143.4,12.1,root='Run',8.9028,0,19
 19519331117,Evening Walk,2026-07-29 19:29:39+00:00,3.439,43.46666666666667,40.3,root='Walk',4.7484,0,21
